@@ -54,42 +54,75 @@ typedef void (*bench_func_ptr_t)(Perf*,
     perf->print_go_benchstat_format(result.name, outerIters, innerIters);\
   }
 
-#define BENCH_BOTH(outerIters, innerIters, funcName, func, ...)\
-void Bench##funcName##Same(Perf* perf,\
-                           std::uniform_int_distribution<uint64_t>& rng,\
-                           std::uniform_int_distribution<uint64_t>& rng_upper,\
-                           std::vector<BenchResult>& results) {\
-  uint64_t  x[6];\
-  uint64_t  y[6];\
-  uint64_t* dest = x;\
-\
-  std::mt19937_64 gen(1);\
-  for (int i = 0; i < 5; ++i) {\
-    x[i] = rng(gen);\
-    y[i] = rng(gen);\
+#ifdef BENCH_ONLY_SERIAL_DEPENDENCE
+  #define BENCH_FUNC(outIters, inIters, funcName, func, ...)\
+  void Bench##funcName(Perf* perf,\
+    std::uniform_int_distribution<uint64_t>& rng,\
+    std::uniform_int_distribution<uint64_t>& rng_upper,\
+    std::vector<BenchResult>& results) {\
+  \
+    uint64_t  x[6];\
+    uint64_t  y[6];\
+    uint64_t* dest = x;\
+  \
+    std::mt19937_64 gen(1);\
+    for (int i = 0; i < 5; ++i) {\
+      x[i] = rng(gen);\
+      y[i] = rng(gen);\
+    }\
+    x[5] = rng_upper(gen);\
+    y[5] = rng_upper(gen);\
+  \
+    WARM_UP_AND_BENCH(funcName, , outIters, inIters, func, __VA_ARGS__)\
+  }
+  
+  #define ADD_BENCH_FUNC(funcName, benchVec)\
+    benchVec.push_back(Bench##funcName);
+#else
+  #define BENCH_FUNC(outIters, inIters, funcName, func, ...)\
+  void Bench##funcName##Dependent(Perf* perf,\
+    std::uniform_int_distribution<uint64_t>& rng,\
+    std::uniform_int_distribution<uint64_t>& rng_upper,\
+    std::vector<BenchResult>& results) {\
+  \
+    uint64_t  x[6];\
+    uint64_t  y[6];\
+    uint64_t* dest = x;\
+  \
+    std::mt19937_64 gen(1);\
+    for (int i = 0; i < 5; ++i) {\
+      x[i] = rng(gen);\
+      y[i] = rng(gen);\
+    }\
+    x[5] = rng_upper(gen);\
+    y[5] = rng_upper(gen);\
+  \
+    WARM_UP_AND_BENCH(funcName, Same, outIters, inIters, func, __VA_ARGS__)\
   }\
-  x[5] = rng_upper(gen);\
-  y[5] = rng_upper(gen);\
-\
-  WARM_UP_AND_BENCH(funcName, Same, outerIters, innerIters, func, __VA_ARGS__)\
-}\
-void Bench##funcName##Diff(Perf* perf,\
-                           std::uniform_int_distribution<uint64_t>& rng,\
-                           std::uniform_int_distribution<uint64_t>& rng_upper,\
-                           std::vector<BenchResult>& results) {\
-  uint64_t  x[6];\
-  uint64_t  y[6];\
-  uint64_t  dest[6];\
-\
-  std::mt19937_64 gen(1);\
-  for (int i = 0; i < 5; ++i) {\
-    x[i] = rng(gen);\
-    y[i] = rng(gen);\
-  }\
-  x[5] = rng_upper(gen);\
-  y[5] = rng_upper(gen);\
-\
-  WARM_UP_AND_BENCH(funcName, Diff, outerIters, innerIters, func, __VA_ARGS__)\
-}
+  \
+  void Bench##funcName##NotDependent(Perf* perf,\
+    std::uniform_int_distribution<uint64_t>& rng,\
+    std::uniform_int_distribution<uint64_t>& rng_upper,\
+    std::vector<BenchResult>& results) {\
+  \
+    uint64_t  x[6];\
+    uint64_t  y[6];\
+    uint64_t  dest[6];\
+  \
+    std::mt19937_64 gen(1);\
+    for (int i = 0; i < 5; ++i) {\
+      x[i] = rng(gen);\
+      y[i] = rng(gen);\
+    }\
+    x[5] = rng_upper(gen);\
+    y[5] = rng_upper(gen);\
+  \
+    WARM_UP_AND_BENCH(funcName, Diff, outIters, inIters, func, __VA_ARGS__)\
+  }
+
+  #define ADD_BENCH_FUNC(funcName, benchVec)\
+    benchVec.push_back(Bench##funcName##Dependent);\
+    benchVec.push_back(Bench##funcName##NotDependent);
+#endif /* BENCH_ONLY_SERIAL_DEPENDENCE */
 
 #endif /* __SUPRANATIONAL_BENCH_H__ */

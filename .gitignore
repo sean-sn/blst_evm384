@@ -36,4 +36,5 @@
 
 # build artifacts
 blst_asm
-bench_eip2537
+test_evm384
+bench_evm384

@@ -6,6 +6,14 @@
 //#define PRINT_GO_BENCHSTAT_FORMAT true
 #define PRINT_GO_BENCHSTAT_FORMAT false
 
+// Use define to bench functions using only serial dependence between calls
+// This is the proper method.  Not defining is simply to show the difference 
+//   between method results.
+#define BENCH_ONLY_SERIAL_DEPENDENCE true
+
+// Prints verbose data about each benchmark result
+#define PRINT_BENCH_VERBOSE true
+
 #include <iostream>
 #include <iomanip>
 #include <locale>
@@ -16,39 +24,32 @@
 #include <random>
 #include <cstring>
 
+
 #include "bench.h"
+#include "blst_evm384.h"
 
-#if defined(__ADX__) /* e.g. -march=broadwell */ && !defined(__BLST_PORTABLE__)
-# define mul_mont_384 mulx_mont_384
-#endif
+// Outer iterations are number of bench runs to perform per function
+// Inner iterations are the number of times to run the function in a timed loop
+#define OUTER_ITERS_FAST 10
+#define INNER_ITERS_FAST 1000000
 
-typedef uint64_t vec384[6];
-
-extern "C" {
-  void add_mod_384(vec384 ret, const vec384 a, const vec384 b, const vec384 p);
-  void sub_mod_384(vec384 ret, const vec384 a, const vec384 b, const vec384 p);
-  void mul_mont_384(vec384 ret, const vec384 a, const vec384 b,
-                    const vec384 p, uint64_t n0);
-
-  // BLS12-381 Modulus
-  const uint64_t BLS12_381_P[6] = {
-    0xb9feffffffffaaab, 0x1eabfffeb153ffff,
-    0x6730d2a0f6b0f624, 0x64774b84f38512bf,
-    0x4b1ba7b6434bacd7, 0x1a0111ea397fe69a
-  };
-}
-
-const uint64_t BLS12_381_p0 = (uint64_t)0x89f3fffcfffcfffd;  /* -1/P */
-
-
-BENCH_BOTH(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384AddBLS381, add_mod_384,
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384AddBLS381, add_mod_384,
            dest, x, y, BLS12_381_P)
 
-BENCH_BOTH(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384SubBLS381, sub_mod_384,
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384AddNoAsmBLS381,
+           add_mod_384_no_asm, dest, x, y, BLS12_381_P)
+
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384SubBLS381, sub_mod_384,
            dest, x, y, BLS12_381_P)
 
-BENCH_BOTH(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384MulBLS381, mul_mont_384,
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384SubNoAsmBLS381,
+           sub_mod_384_no_asm, dest, x, y, BLS12_381_P)
+
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384MulBLS381, mul_mont_384,
            dest, x, y, BLS12_381_P, BLS12_381_p0)
+
+BENCH_FUNC(OUTER_ITERS_FAST, INNER_ITERS_FAST, EVM384MulNoAsmBLS381,
+           mul_mont_384_no_asm, dest, x, y, BLS12_381_P, BLS12_381_p0)
 
 int main(int argc, char **argv) {
   bool skip_cycle_check = false;
@@ -106,14 +107,29 @@ int main(int argc, char **argv) {
   std::time_t startTime = std::chrono::system_clock::to_time_t(startClock);
   std::cout << "Run date: " << std::ctime(&startTime) << std::endl;
 
+  /*
   std::vector<bench_func_ptr_t> benches = {
     BenchEVM384AddBLS381Same,
     BenchEVM384AddBLS381Diff,
+    BenchEVM384AddNoAsmBLS381Same,
+    BenchEVM384AddNoAsmBLS381Diff,
     BenchEVM384SubBLS381Same,
     BenchEVM384SubBLS381Diff,
+    BenchEVM384SubNoAsmBLS381Same,
+    BenchEVM384SubNoAsmBLS381Diff,
     BenchEVM384MulBLS381Same,
     BenchEVM384MulBLS381Diff,
+    BenchEVM384MulNoAsmBLS381Same,
+    BenchEVM384MulNoAsmBLS381Diff,
   };
+  */
+  std::vector<bench_func_ptr_t> benches;
+  ADD_BENCH_FUNC(EVM384AddBLS381, benches);
+  ADD_BENCH_FUNC(EVM384AddNoAsmBLS381, benches);
+  ADD_BENCH_FUNC(EVM384SubBLS381, benches);
+  ADD_BENCH_FUNC(EVM384SubNoAsmBLS381, benches);
+  ADD_BENCH_FUNC(EVM384MulBLS381, benches);
+  ADD_BENCH_FUNC(EVM384MulNoAsmBLS381, benches);
 
   std::vector<BenchResult> results;
 

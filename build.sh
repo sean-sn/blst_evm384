@@ -38,6 +38,10 @@ if [ ! -d blst_asm ]; then
   cd ..
 fi
 
-g++ -Iblst_asm -march=native -O3  src/perf.cpp src/bench_evm384.cpp src/assembly.S -o bench_eip2537
+g++ -Iblst_asm -march=native -O3  src/test_evm384.cpp src/assembly.S src/blst_evm384_no_asm.cpp -o test_evm384
 
-./bench_eip2537
+./test_evm384
+
+g++ -Iblst_asm -march=native -O3  src/perf.cpp src/bench_evm384.cpp src/assembly.S src/blst_evm384_no_asm.cpp -o bench_evm384
+
+./bench_evm384
